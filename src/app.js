@@ -8,7 +8,11 @@ import {
   toggleFavorite, 
   saveUser, 
   saveOrders, 
-  getCartTotals 
+  getCartTotals,
+  syncDishesFromAPI,
+  submitOrderToAPI,
+  submitInquiryToAPI,
+  loginUserAPI
 } from './state.js';
 import { 
   renderNavbar, 
@@ -202,21 +206,42 @@ function bindEvents() {
 
   const checkoutForm = document.getElementById('checkout-form');
   if (checkoutForm) {
-    checkoutForm.onsubmit = (e) => {
+    checkoutForm.onsubmit = async (e) => {
       e.preventDefault();
-      const { total } = getCartTotals();
-      const newOrder = {
+      const { subtotal, discount, deliveryFee, tax, total } = getCartTotals();
+      const name = document.getElementById('co-name')?.value || 'Guest';
+      const phone = document.getElementById('co-phone')?.value || '';
+      const email = document.getElementById('co-email')?.value || 'guest@savoria.com';
+      const address = document.getElementById('co-addr')?.value || '';
+
+      const orderPayload = {
+        customer_name: name,
+        customer_email: email,
+        customer_phone: phone,
+        delivery_type: state.deliveryType,
+        address,
+        subtotal,
+        discount,
+        delivery_fee: deliveryFee,
+        tax,
+        total,
+        items: [...state.cart]
+      };
+
+      const apiResult = await submitOrderToAPI(orderPayload);
+      const newOrder = apiResult || {
         id: 'SAV-' + Math.floor(10000 + Math.random() * 90000),
         date: 'Just now',
         items: [...state.cart],
         total,
         status: 'Preparing at Hearth'
       };
+
       state.orders.unshift(newOrder);
       saveOrders();
       clearCart();
       latestReceipt = newOrder;
-      showToast('Order confirmed and sent to kitchen hearth!');
+      showToast('Order saved to SQLite database!');
       render();
     };
   }
@@ -235,7 +260,8 @@ function bindEvents() {
     btn.onclick = (e) => {
       e.stopPropagation();
       const id = btn.getAttribute('data-quickadd');
-      const dish = DISHES.find(d => d.id === id);
+      const dishes = state.dishes && state.dishes.length ? state.dishes : DISHES;
+      const dish = dishes.find(d => d.id === id);
       if (dish) {
         addToCart(dish, 1);
         showToast(`Added 1x ${dish.name} to order!`);
@@ -286,7 +312,8 @@ function bindEvents() {
   if (modalAddBtn) {
     modalAddBtn.onclick = () => {
       const id = modalAddBtn.getAttribute('data-dishid');
-      const dish = DISHES.find(d => d.id === id);
+      const dishes = state.dishes && state.dishes.length ? state.dishes : DISHES;
+      const dish = dishes.find(d => d.id === id);
       if (dish) {
         addToCart(dish, 1);
         state.selectedDishId = null;
@@ -335,26 +362,31 @@ function bindEvents() {
     };
   });
 
-  // Contact form
+  // Contact form -> SQLite Inquiries
   const contactForm = document.getElementById('contact-form');
   if (contactForm) {
-    contactForm.onsubmit = (e) => {
+    contactForm.onsubmit = async (e) => {
       e.preventDefault();
       const name = document.getElementById('c-name')?.value || 'Guest';
-      showToast(`Thank you, ${name}! Your inquiry has been sent to our Head Concierge.`);
+      const email = document.getElementById('c-email')?.value || '';
+      const phone = document.getElementById('c-phone')?.value || '';
+      const topic = document.getElementById('c-topic')?.value || 'General Dining';
+      const message = document.getElementById('c-msg')?.value || '';
+
+      await submitInquiryToAPI({ name, email, phone, topic, message });
+      showToast(`Thank you, ${name}! Your inquiry was recorded into the concierge database.`);
       contactForm.reset();
     };
   }
 
-  // Auth form & Demo VIP login
+  // Auth form & Demo VIP login -> SQLite Users
   const authForm = document.getElementById('auth-form');
   if (authForm) {
-    authForm.onsubmit = (e) => {
+    authForm.onsubmit = async (e) => {
       e.preventDefault();
       const email = document.getElementById('auth-email')?.value || 'guest@domain.com';
       const name = document.getElementById('auth-name')?.value || email.split('@')[0];
-      state.user = { name, email };
-      saveUser();
+      await loginUserAPI(email, name);
       showToast(`Welcome back, ${name}!`);
       render();
     };
@@ -362,9 +394,8 @@ function bindEvents() {
 
   const demoVipBtn = document.getElementById('demo-vip-btn');
   if (demoVipBtn) {
-    demoVipBtn.onclick = () => {
-      state.user = { name: 'Eleanor Vance', email: 'eleanor@epicurean.com' };
-      saveUser();
+    demoVipBtn.onclick = async () => {
+      await loginUserAPI('eleanor@epicurean.com', 'Eleanor Vance');
       showToast('Signed in as VIP Patron Eleanor Vance');
       render();
     };
@@ -400,9 +431,14 @@ function showToast(msg) {
   }, 3200);
 }
 
-// Initial boot
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', render);
-} else {
+// Initial boot with backend sync
+async function initApp() {
+  await syncDishesFromAPI();
   render();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
 }

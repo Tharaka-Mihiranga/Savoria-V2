@@ -103,7 +103,8 @@ export function renderNavbar() {
 }
 
 export function renderHomeView() {
-  const featured = DISHES.filter(d => d.isFeatured);
+  const dishes = state.dishes && state.dishes.length ? state.dishes : DISHES;
+  const featured = dishes.filter(d => d.isFeatured);
 
   return `
     <div class="space-y-16 sm:space-y-24 pb-16 animate-fade-in">
@@ -234,7 +235,8 @@ export function renderHomeView() {
 }
 
 export function renderMenuView() {
-  let list = DISHES.filter(d => {
+  const allDishes = state.dishes && state.dishes.length ? state.dishes : DISHES;
+  let list = allDishes.filter(d => {
     if (state.category !== 'all' && d.category !== state.category) return false;
     if (state.dietary !== 'all' && !d.tags.includes(state.dietary)) return false;
     if (state.searchQuery.trim()) {
@@ -396,7 +398,8 @@ function renderDishCard(dish) {
 
 export function renderDishModal() {
   if (!state.selectedDishId) return '';
-  const d = DISHES.find(item => item.id === state.selectedDishId);
+  const dishes = state.dishes && state.dishes.length ? state.dishes : DISHES;
+  const d = dishes.find(item => item.id === state.selectedDishId);
   if (!d) return '';
 
   return `
@@ -665,7 +668,8 @@ export function renderContactView() {
 
 export function renderAuthView() {
   if (state.user) {
-    const favs = DISHES.filter(d => state.favorites.includes(d.id));
+    const dishes = state.dishes && state.dishes.length ? state.dishes : DISHES;
+    const favs = dishes.filter(d => state.favorites.includes(d.id));
     return `
       <div class="max-w-5xl mx-auto px-4 py-10 space-y-8 animate-fade-in">
         <div class="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm flex justify-between items-center">
